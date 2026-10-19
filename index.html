@@ -69,20 +69,41 @@
   .hidden{display:none!important}
   footer{text-align:center;color:var(--muted);font-size:12px;padding:20px}
   a{color:var(--accent)}
+  .tabs{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .tabs button{background:transparent;border:1px solid #334155;color:var(--muted);padding:8px 14px;font-weight:700}
+  .tabs button.active{background:var(--panel2);color:#fff;border-color:var(--accent)}
+  .drow{background:#020617;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:10px}
+  .dlabel{font-size:14px;margin-bottom:8px}
+  .dlabel .dmark{margin-left:6px}
+  .dgrid{display:grid;grid-template-columns:120px 1fr 1fr 130px;gap:6px}
+  @media(max-width:900px){.dgrid{grid-template-columns:1fr 1fr}}
+  select.dm,select.ds,input.dp,input.dq{background:#0f172a;border:1px solid #334155;border-radius:6px;color:#fff;padding:8px;font-size:13px;min-width:0;width:100%}
+  .dmsg{font-size:13px;margin-top:6px;line-height:1.5}
+  #dSpec .task{margin:6px 0;font-size:14px}
+  #dFeedback{margin-top:16px;padding:14px;border-radius:var(--radius);border:1px solid #334155;display:none}
+  #dFeedback.ok{display:block;background:#052e16;border-color:var(--green)}
+  #dFeedback.bad{display:block;background:#450a0a;border-color:var(--red)}
+  #dFeedback h3{margin:0 0 6px}
+  #dFeedback p{margin:6px 0;font-size:14px;line-height:1.55}
 </style>
 </head>
 <body>
 <header>
   <h1>🚀 ShipFast: <span>REST Endpoint Adventure</span></h1>
+  <div class="tabs">
+    <button id="tabPlay" class="active">🛠 Fix the Client</button>
+    <button id="tabDesign">✎ Design the API</button>
+  </div>
   <div class="hud">
     <div class="pill">⭐ XP: <b id="xp">0</b></div>
     <div class="pill">🔥 Streak: <b id="streak">0</b></div>
     <div class="pill">✅ <span id="doneCount">0</span>/20 mastered</div>
+    <div class="pill">✎ <span id="designCount">0</span>/4 designed</div>
     <button class="btn-ghost" id="resetBtn" title="Reset all progress">Reset</button>
   </div>
 </header>
 
-<main>
+<main id="playMain">
   <aside id="map" class="card">
     <h2>Adventure Map</h2>
     <div id="levels"></div>
@@ -138,6 +159,40 @@
   </section>
 </main>
 
+<main id="designMain" class="hidden">
+  <aside id="dmap" class="card">
+    <h2>Design Briefs</h2>
+    <div id="dlevels"></div>
+    <div class="progress"><div id="dbar"></div></div>
+    <p style="font-size:12px;color:var(--muted)">Read the narrative, then design each endpoint: method + path (+ query + status). Use <b>{id}</b> placeholders, never real IDs. Ctrl+Enter checks.</p>
+  </aside>
+
+  <section>
+    <div class="card" id="dbriefCard">
+      <h2>✎ Brief <span id="dBriefId"></span></h2>
+      <div style="font-weight:700;font-size:17px" id="dTitle"></div>
+      <p id="dStory" style="color:var(--muted);font-size:14px;line-height:1.6"></p>
+      <label>Frontend spec — required actions</label>
+      <div id="dSpec"></div>
+      <div class="row">
+        <button class="btn-ghost" id="dHintBtn">💡 Hint (−10 XP)</button>
+        <button class="btn-ghost hidden" id="dRevealBtn">👁 Reveal design</button>
+      </div>
+      <div id="dHintBox" style="font-size:13px;color:var(--yellow);margin-top:8px"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>🛠 Your endpoint design</h2>
+      <div id="dRows"></div>
+      <div class="row">
+        <button class="btn-primary" id="dCheckBtn">📐 Check design</button>
+      </div>
+    </div>
+
+    <div id="dFeedback"></div>
+  </section>
+</main>
+
 <footer>Learn REST by doing • plural nouns • no verbs in URLs • correct method + status codes • progress autosaves locally</footer>
 
 <script>
@@ -175,7 +230,7 @@ const SCENARIOS = [
 const MASTERY = 2; // solves required per ticket (repetition). Bump to 3 for extra drill.
 
 const LS_KEY="shipfast-rest-game-v1";
-let state={xp:0,streak:0,bestStreak:0,completed:[],stars:{},variants:{},current:0,hintIdx:{},fails:{}};
+let state={xp:0,streak:0,bestStreak:0,completed:[],stars:{},variants:{},current:0,hintIdx:{},fails:{},designDone:[],designFails:{},designHintIdx:{},designRevealed:{},designIdx:0,mode:"play"};
 try{
   const s=JSON.parse(localStorage.getItem(LS_KEY));
   if(s&&Array.isArray(s.completed)){
@@ -289,6 +344,7 @@ function renderHUD(){
   $("xp").textContent=state.xp;
   $("streak").textContent=state.streak;
   $("doneCount").textContent=masteredCount();
+  $("designCount").textContent=state.designDone.length;
   document.querySelector("#doneCount").parentElement.title=`${totalStars()} / ${SCENARIOS.length*MASTERY} stars`;
   $("bar").style.width=(totalStars()/(SCENARIOS.length*MASTERY)*100)+"%";
 }
@@ -466,10 +522,191 @@ $("revealBtn").onclick=()=>{
   updatePreview();
   $("hintBox").textContent="Answer filled in — hit Send to confirm (worth reduced XP).";
 };
-$("resetBtn").onclick=()=>{if(confirm("Reset all progress?")){state={xp:0,streak:0,bestStreak:0,completed:[],stars:{},variants:{},current:0,hintIdx:{},fails:{}};save();renderAll();}};
-document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")send();});
+$("resetBtn").onclick=()=>{if(confirm("Reset all progress?")){state={xp:0,streak:0,bestStreak:0,completed:[],stars:{},variants:{},current:0,hintIdx:{},fails:{},designDone:[],designFails:{},designHintIdx:{},designRevealed:{},designIdx:0,mode:state.mode};save();renderAll();renderDesignAll();}};
+/* ================= MODE 2: API DESIGNER ================= */
+const DESIGN_BRIEFS=[
+{id:"D1",title:"Bookstore API",story:"You're the backend dev for a bookstore. The frontend team hands you this spec — design clean REST endpoints for every action below. Use plural nouns, nest owned resources, and {id} placeholders (never real IDs).",takeaway:"Collections are plural (/books), single items append {id}, owned resources nest (/members/{id}/orders), and creation POSTs to the collection → 201.",hints:["Nouns, not verbs — the method is already the verb. What are the 'things' in this shop?","Orders belong to a member: nest them under /members/{id}. Creating anything POSTs to its collection → 201."],actions:[
+{label:"Show every book in the catalog",method:"GET",path:"/books",query:{},status:"200"},
+{label:"Show one book's details",method:"GET",path:"/books/{id}",query:{},status:"200"},
+{label:"Add a brand-new book to the catalog",method:"POST",path:"/books",query:{},status:"201"},
+{label:"Show all orders that belong to one member",method:"GET",path:"/members/{id}/orders",query:{},status:"200"},
+{label:"Place a new order for a member",method:"POST",path:"/members/{id}/orders",query:{},status:"201"}]},
+{id:"D2",title:"Blog API",story:"A blogging platform needs an API for posts and their comments. Comments can't exist without a post — let the URL structure say so.",takeaway:"Deep nesting mirrors ownership: /posts/{id}/comments/{cid}. DELETE on a single item succeeds with 204 and an empty body.",hints:["Comments live under their post — every comment route starts with /posts/{id}/comments.","Removing one comment targets the single nested item: DELETE → 204."],actions:[
+{label:"List all blog posts",method:"GET",path:"/posts",query:{},status:"200"},
+{label:"Read one post",method:"GET",path:"/posts/{id}",query:{},status:"200"},
+{label:"Publish a new post",method:"POST",path:"/posts",query:{},status:"201"},
+{label:"Show one post's comments",method:"GET",path:"/posts/{id}/comments",query:{},status:"200"},
+{label:"Delete one comment",method:"DELETE",path:"/posts/{id}/comments/{cid}",query:{},status:"204"}]},
+{id:"D3",title:"Task manager API",story:"A todo frontend needs full updates plus filtered listing. Same /tasks/{id} route, three different methods — and filtering must NOT become a new path.",takeaway:"PUT replaces the whole resource, PATCH touches fields, DELETE → 204. Filtering is a query (?status=open), never a new path.",hints:["Full replace = PUT, partial tweak = PATCH, remove = DELETE — same /tasks/{id} route, three methods.","Filtering never needs a new path: keep GET /tasks and add ?status=open."],actions:[
+{label:"Replace a whole task",method:"PUT",path:"/tasks/{id}",query:{},status:"200"},
+{label:"Flip just the completed flag",method:"PATCH",path:"/tasks/{id}",query:{},status:"200"},
+{label:"Remove a task",method:"DELETE",path:"/tasks/{id}",query:{},status:"204"},
+{label:"List tasks, filterable by status",method:"GET",path:"/tasks",query:{status:"open"},status:"200"}]},
+{id:"D4",title:"BOSS: Library API",story:"Final exam: design a whole library API from scratch — members, their loans, returns. If the shapes remind you of the bookstore, that's the point: good REST design rhymes.",takeaway:"Full CRUD on two nested resources. /members/{id}/loans works exactly like /members/{id}/orders — learn the pattern once, reuse it everywhere.",hints:["Same shape as the bookstore: members own loans, just like members own orders.","Loaning creates → POST …/loans → 201; returning removes → DELETE the single loan → 204."],actions:[
+{label:"List all members",method:"GET",path:"/members",query:{},status:"200"},
+{label:"Show one member",method:"GET",path:"/members/{id}",query:{},status:"200"},
+{label:"Register a new member",method:"POST",path:"/members",query:{},status:"201"},
+{label:"Show one member's loans",method:"GET",path:"/members/{id}/loans",query:{},status:"200"},
+{label:"Loan out a book to a member",method:"POST",path:"/members/{id}/loans",query:{},status:"201"},
+{label:"Record a book return",method:"DELETE",path:"/members/{id}/loans/{loanId}",query:{},status:"204"}]}
+];
 
-renderAll();
+function designDoneCount(){return state.designDone.length;}
+function currentBrief(){return DESIGN_BRIEFS[state.designIdx];}
+function briefUnlocked(i){return i===0||state.designDone.includes(DESIGN_BRIEFS[i-1].id);}
+function parseQueryText(t){
+  t=(t||"").trim().replace(/^\?/,"");
+  if(!t)return{};
+  const o={};
+  try{new URLSearchParams(t).forEach((v,k)=>{o[k]=v;});}catch(e){}
+  return o;
+}
+function expectedSegs(pattern){return pattern.split("/").filter(Boolean).map(p=>p.startsWith("{")?{param:true}:{param:false,value:p.toLowerCase()});}
+function validateDesignRow(action,row){
+  const m=(row.method||"").toUpperCase();
+  if(m!==action.method) return {ok:false,msg:`Method "${row.method||"—"}" doesn't fit "${action.label}". Reading → GET, creating → POST, full replace → PUT, partial update → PATCH, removing → DELETE. What is this action doing?`};
+  const raw=(row.path||"").trim();
+  if(!raw) return {ok:false,msg:`Path is empty. Design the route for "${action.label}" — paths start with /.`};
+  if(!raw.startsWith("/")) return {ok:false,msg:`"${raw}" must start with /. Routes look like /items or /items/{id}.`};
+  const segs=normPath(raw).split("/").filter(Boolean);
+  const verb=segs.find(s=>/^(get|post|put|patch|delete|create|update|fetch|add|remove)([A-Z_][\w]*)?$/.test(s));
+  if(verb) return {ok:false,msg:`"${verb}" looks like a verb in the URL. The HTTP method is already the verb — use a plural noun instead.`};
+  const exp=expectedSegs(action.path);
+  if(segs.length!==exp.length) return {ok:false,msg:`Shape looks off: your path has ${segs.length} segment(s). Think about the collection, and whether it nests under another resource.`};
+  for(let i=0;i<exp.length;i++){
+    const s=segs[i], e=exp[i];
+    const isParam=/^\{[^{}]+\}$/.test(s)||/^:[A-Za-z_]\w*$/.test(s)||/^<[^<>]+>$/.test(s);
+    if(e.param){
+      if(/^\d+$/.test(s)) return {ok:false,msg:`Segment ${i+1} ("${s}") is a real id. In a design, use a placeholder like {id} — one route must work for every id.`};
+      if(!isParam) return {ok:false,msg:`Segment ${i+1} ("${s}") should be an {id} placeholder, not a fixed name.`};
+    }else if(isParam||s.toLowerCase()!==e.value){
+      return {ok:false,msg:`Segment ${i+1} ("${s}") doesn't match the resource. Check the brief: collections are plural nouns.`};
+    }
+  }
+  const need=action.query||{};
+  for(const k of Object.keys(need)){
+    if(!(k in row.query)) return {ok:false,msg:`Missing query "?${k}". The brief requires filtering here — add it as key=value.`};
+    if(String(row.query[k])!==String(need[k])) return {ok:false,msg:`Query "${k}" has the wrong value. Copy the exact value from the brief.`};
+  }
+  if(row.status!==action.status) return {ok:false,msg:`Status "${row.status||"—"}" isn't right for "${action.label}". Reading → 200, creating → 201, deleting → 204. What does this action do?`};
+  return {ok:true};
+}
+function renderDesignMap(){
+  const el=$("dlevels");el.innerHTML="";
+  DESIGN_BRIEFS.forEach((b,i)=>{
+    const done=state.designDone.includes(b.id);
+    const un=briefUnlocked(i);
+    const btn=document.createElement("button");
+    btn.className="lvl"+(done?" done":"")+(i===state.designIdx?" current":"")+(un?"":" locked");
+    btn.innerHTML=`${done?"✅":un?"○":"🔒"} ${b.id} — ${b.title}`;
+    btn.disabled=!un;
+    btn.onclick=()=>{state.designIdx=i;refreshDesign(`Brief ${b.id} loaded — read the narrative, then design.`);};
+    el.appendChild(btn);
+  });
+  $("dbar").style.width=(designDoneCount()/DESIGN_BRIEFS.length*100)+"%";
+}
+function renderBrief(){
+  const b=currentBrief();
+  const done=state.designDone.includes(b.id);
+  $("dBriefId").textContent=`${b.id}${done?" ✅":""}`;
+  $("dTitle").textContent=b.title;
+  $("dStory").textContent=b.story;
+  $("dSpec").innerHTML=b.actions.map((a,i)=>`<div class="task">${i+1}. ${a.label}</div>`).join("");
+  const box=$("dRows");box.innerHTML="";
+  b.actions.forEach((a,i)=>{
+    const d=document.createElement("div");d.className="drow";
+    d.innerHTML=`<div class="dlabel"><b>${i+1}. ${a.label}</b><span class="dmark"></span></div>
+    <div class="dgrid">
+      <select class="dm" aria-label="Method"><option value="">Method…</option>${METHODS.map(x=>`<option>${x}</option>`).join("")}</select>
+      <input class="dp" placeholder="/… e.g. /books/{id}" autocomplete="off" spellcheck="false" aria-label="Path">
+      <input class="dq" placeholder="query — e.g. status=open" autocomplete="off" spellcheck="false" aria-label="Query">
+      <select class="ds" aria-label="Status"><option value="">Status…</option><option value="200">200 OK</option><option value="201">201 Created</option><option value="204">204 No Content</option></select>
+    </div><div class="dmsg"></div>`;
+    box.appendChild(d);
+  });
+  $("dRevealBtn").classList.toggle("hidden",!((state.designFails[b.id]||0)>=3&&!done));
+  $("dHintBox").textContent="";
+}
+function refreshDesign(msg){
+  $("dFeedback").style.display="none";
+  renderDesignMap();renderBrief();save();
+  const t=$("dbriefCard");if(t&&t.scrollIntoView)t.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderDesignAll(){renderDesignMap();renderBrief();}
+function checkDesign(){
+  const b=currentBrief();
+  const els=[...document.querySelectorAll("#dRows .drow")];
+  let allOk=true, firstMsg="";
+  els.forEach((el,i)=>{
+    const a=b.actions[i];
+    const row={method:el.querySelector(".dm").value,path:el.querySelector(".dp").value,query:parseQueryText(el.querySelector(".dq").value),status:el.querySelector(".ds").value};
+    const r=validateDesignRow(a,row);
+    el.querySelector(".dmark").innerHTML=r.ok?`<span style="color:var(--green)">✅</span>`:`<span style="color:var(--red)">❌</span>`;
+    el.querySelector(".dmsg").textContent=r.ok?"":r.msg;
+    el.querySelector(".dmsg").style.color=r.ok?"":"#fca5a5";
+    if(!r.ok){allOk=false;if(!firstMsg)firstMsg=r.msg;}
+  });
+  const fb=$("dFeedback");
+  if(allOk){
+    const already=state.designDone.includes(b.id);
+    const revealed=!!state.designRevealed[b.id];
+    state.streak++;state.bestStreak=Math.max(state.bestStreak,state.streak);
+    let gain=already?10:(revealed?20:((state.designFails[b.id]||0)?80:150));
+    if(state.streak>=3)gain+=25;
+    state.xp+=gain;
+    if(!already)state.designDone.push(b.id);
+    const rows=b.actions.map(a=>{
+      const q=Object.entries(a.query||{}).map(([k,v])=>`${k}=${v}`).join("&");
+      return `<div><code>${a.method} ${a.path}${q?"?"+q:""} → ${a.status}</code> — ${a.label}</div>`;
+    }).join("");
+    const last=state.designIdx===DESIGN_BRIEFS.length-1;
+    fb.className="ok";
+    fb.innerHTML=`<h3>✅ Brief designed! +${gain} XP ${state.streak>=2?`(${state.streak} streak 🔥)`:""}</h3><div class="rule">📏 ${b.takeaway}</div><div style="margin-top:8px;font-size:13px;line-height:1.9">${rows}</div><div class="row">${last?`<button class="btn-green" onclick="alert('🎓 Designer complete! ${designDoneCount()}/4 briefs — XP: ${state.xp}. You can design REST APIs from a spec!')">🏆 Finish</button>`:`<button class="btn-green" id="dNextBtn">Next brief →</button>`}</div>`;
+    if(!last)$("dNextBtn").onclick=()=>{state.designIdx=Math.min(state.designIdx+1,DESIGN_BRIEFS.length-1);refreshDesign(`Brief ${DESIGN_BRIEFS[state.designIdx].id} loaded — read the narrative, then design.`);};
+  }else{
+    state.streak=0;state.xp=Math.max(0,state.xp-5);
+    state.designFails[b.id]=(state.designFails[b.id]||0)+1;
+    fb.className="bad";
+    fb.innerHTML=`<h3>❌ Design needs work (−5 XP)</h3><p>${firstMsg}</p><div class="rule">💡 ${b.hints[0]}</div>${state.designFails[b.id]>=3?`<p>Stuck? Use <b>👁 Reveal design</b> above.</p>`:""}`;
+    $("dRevealBtn").classList.toggle("hidden",!(state.designFails[b.id]>=3&&!state.designDone.includes(b.id)));
+  }
+  if(fb.scrollIntoView)fb.scrollIntoView({behavior:"smooth",block:"center"});
+  renderHUD();renderDesignMap();save();
+}
+function setMode(m){
+  state.mode=m;save();
+  $("tabPlay").classList.toggle("active",m==="play");
+  $("tabDesign").classList.toggle("active",m==="design");
+  $("playMain").classList.toggle("hidden",m!=="play");
+  $("designMain").classList.toggle("hidden",m!=="design");
+}
+$("tabPlay").onclick=()=>setMode("play");
+$("tabDesign").onclick=()=>setMode("design");
+$("dCheckBtn").onclick=checkDesign;
+$("dHintBtn").onclick=()=>{
+  const b=currentBrief();
+  const i=state.designHintIdx[b.id]||0;
+  if(i>=b.hints.length){$("dHintBox").textContent="No more hints.";return;}
+  state.xp=Math.max(0,state.xp-10);
+  $("dHintBox").textContent=`💡 Hint ${i+1}/${b.hints.length}: ${b.hints[i]}`;
+  state.designHintIdx[b.id]=i+1;renderHUD();save();
+};
+$("dRevealBtn").onclick=()=>{
+  const b=currentBrief();
+  const els=[...document.querySelectorAll("#dRows .drow")];
+  els.forEach((el,i)=>{
+    const a=b.actions[i];
+    el.querySelector(".dm").value=a.method;
+    el.querySelector(".dp").value=a.path;
+    el.querySelector(".dq").value=Object.entries(a.query||{}).map(([k,v])=>`${k}=${v}`).join("&");
+    el.querySelector(".ds").value=a.status;
+  });
+  state.designRevealed[b.id]=true;save();
+  $("dHintBox").textContent="Canonical design filled in — hit Check design to confirm (reduced XP).";
+};
+document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){if(state.mode==="design")checkDesign();else send();}});
+
+renderAll();renderDesignAll();setMode(state.mode||"play");
 </script>
 </body>
 </html>

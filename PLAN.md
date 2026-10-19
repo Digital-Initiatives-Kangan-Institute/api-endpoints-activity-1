@@ -61,6 +61,13 @@ Scenario schema:
 - Old saves auto-migrate: previously completed tickets count as fully mastered.
 - Mock server: 600ms delay, returns scenario `successBody` on pass, realistic error JSON on fail
 
+## 9. Mode 2 — API Designer (narrative → endpoint design)
+- Header tabs switch between `🛠 Fix the Client` (play) and `✎ Design the API` (designer); mode persists in `localStorage`, XP/streak shared.
+- 4 narrative briefs × required CRUD actions (20 designs): D1 Bookstore, D2 Blog (nested comments), D3 Tasks (PUT vs PATCH vs DELETE + `?status` filter), D4 Boss Library (members + loans).
+- Each action row: method select + path input (accepts `{id}`, `:id`, `<id>`) + free-text query (`key=value`) + status select (200/201/204).
+- Validation (no answer leaks): conceptual method/status hints, verb-in-URL / singular / nesting-shape / placeholder checks, query key+value checks against the brief.
+- Complete brief → +150 XP (80 after fails, 20 if revealed), per-row ✅/❌ with targeted messages, canonical design table + takeaway on success, sequential unlock, map with ✅/🔒, reveal after 3 fails, Ctrl+Enter checks.
+
 ## 7. Implementation
 - Single file: `<style>` dark game theme, responsive + mobile stacking, `<script>` with:
   - `SCENARIOS[]`, `loadState/saveState`, `renderMap/renderScenario/renderProgress`
