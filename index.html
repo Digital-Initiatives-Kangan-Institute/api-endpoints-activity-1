@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShipFast: REST Endpoint Adventure</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#273449; --accent:#38bdf8;
+    --green:#22c55e; --red:#ef4444; --yellow:#facc15; --text:#e2e8f0; --muted:#94a3b8;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 20px;background:#020617;border-bottom:1px solid #334155;position:sticky;top:0;z-index:10}
+  header h1{font-size:18px;margin:0}
+  header h1 span{color:var(--accent)}
+  .hud{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .pill{background:var(--panel);border:1px solid #334155;border-radius:999px;padding:6px 12px;font-size:13px}
+  .pill b{color:var(--yellow)}
+  button{cursor:pointer;border:none;border-radius:8px;padding:9px 14px;font-weight:600;font-size:14px}
+  .btn-primary{background:var(--accent);color:#082f49}
+  .btn-primary:hover{filter:brightness(1.1)}
+  .btn-ghost{background:#334155;color:var(--text)}
+  .btn-green{background:var(--green);color:#052e16}
+  .btn-danger{background:#7f1d1d;color:#fecaca}
+  main{display:grid;grid-template-columns:250px 1fr;gap:16px;padding:16px;max-width:1280px;margin:0 auto}
+  @media(max-width:900px){main{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid #334155;border-radius:var(--radius);padding:16px}
+  #map h2,.card h2{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .lvl{display:block;width:100%;text-align:left;background:transparent;color:var(--text);border:1px solid transparent;border-radius:8px;padding:8px;font-size:13px}
+  .lvl small{display:block;color:var(--muted)}
+  .lvl.done{border-color:#14532d;background:#052e16}
+  .lvl.current{border-color:var(--accent);background:#0c4a6e}
+  .lvl.locked{opacity:.45}
+  .progress{height:8px;background:#020617;border-radius:99px;overflow:hidden;margin-top:10px}
+  .progress>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--green));width:0%}
+  .game{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:900px){.game{grid-template-columns:1fr}}
+  .tag{display:inline-block;font-size:11px;padding:3px 8px;border-radius:99px;margin-bottom:8px;font-weight:700}
+  .tag.frontend{background:#1d4ed8}.tag.backend{background:#6d28d9}
+  .task{background:#020617;border-left:4px solid var(--accent);padding:10px;border-radius:0 8px 8px 0;margin:10px 0;font-size:15px}
+  pre{background:#020617;border:1px solid #334155;border-radius:8px;padding:10px;overflow:auto;font-size:12.5px;line-height:1.5}
+  code{color:#7dd3fc}
+  .methods{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .methods button{background:#0f172a;border:2px solid #334155;color:var(--text);padding:8px 12px}
+  .methods button.active{border-color:var(--accent);background:#0c4a6e;color:#fff}
+  label{font-size:12px;color:var(--muted);display:block;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.05em}
+  .urlrow{display:flex;align-items:center;gap:0;background:#020617;border:1px solid #334155;border-radius:8px;overflow:hidden}
+  .urlrow span{padding:10px;font-size:12px;color:var(--muted);white-space:nowrap}
+  .urlrow input{flex:1;background:transparent;border:none;color:#fff;padding:10px;font-family:ui-monospace,monospace;font-size:14px;outline:none;min-width:0}
+  .qrow{display:flex;gap:6px;margin-bottom:6px}
+  .qrow input{flex:1;background:#020617;border:1px solid #334155;border-radius:6px;color:#fff;padding:8px;font-size:13px;min-width:0}
+  textarea{width:100%;min-height:110px;background:#020617;border:1px solid #334155;border-radius:8px;color:#fff;padding:10px;font-family:ui-monospace,monospace;font-size:13px;resize:vertical}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  #console{font-family:ui-monospace,monospace;font-size:13px}
+  .status{font-weight:800;padding:4px 10px;border-radius:6px;display:inline-block;margin:8px 0}
+  .s200{background:#052e16;color:#4ade80}.s201{background:#083344;color:#22d3ee}
+  .s204{background:#422006;color:#facc15}.s400{background:#450a0a;color:#f87171}
+  .s404{background:#450a0a;color:#fca5a5}.s405{background:#3b0764;color:#c084fc}
+  .spin{display:inline-block;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #feedback{margin-top:16px;padding:14px;border-radius:var(--radius);border:1px solid #334155;display:none}
+  #feedback.ok{display:block;background:#052e16;border-color:var(--green)}
+  #feedback.bad{display:block;background:#450a0a;border-color:var(--red)}
+  #feedback h3{margin:0 0 6px}
+  #feedback p{margin:6px 0;font-size:14px;line-height:1.55}
+  .rule{background:rgba(255,255,255,.08);border-radius:8px;padding:8px 10px;font-size:13px;margin-top:8px}
+  .hidden{display:none!important}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:20px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+  <h1>🚀 ShipFast: <span>REST Endpoint Adventure</span></h1>
+  <div class="hud">
+    <div class="pill">⭐ XP: <b id="xp">0</b></div>
+    <div class="pill">🔥 Streak: <b id="streak">0</b></div>
+    <div class="pill">✅ <span id="doneCount">0</span>/20 mastered</div>
+    <button class="btn-ghost" id="resetBtn" title="Reset all progress">Reset</button>
+  </div>
+</header>
+
+<main>
+  <aside id="map" class="card">
+    <h2>Adventure Map</h2>
+    <div id="levels"></div>
+    <div class="progress"><div id="bar"></div></div>
+    <p style="font-size:12px;color:var(--muted)">Tip: press <b>Ctrl+Enter</b> to Send. Hints cost 10 XP.</p>
+  </aside>
+
+  <section>
+    <div class="game">
+      <div class="card" id="ticketCard">
+        <h2>🎫 Ticket <span id="ticketId"></span></h2>
+        <div id="ticketFrom"></div>
+        <div style="font-weight:700;font-size:17px" id="ticketTitle"></div>
+        <p id="ticketStory" style="color:var(--muted);font-size:14px;line-height:1.6"></p>
+        <div class="task" id="ticketTask"></div>
+        <label>Broken frontend code</label>
+        <pre><code id="ticketSnippet"></code></pre>
+        <div class="row">
+          <button class="btn-ghost" id="hintBtn">💡 Hint (−10 XP)</button>
+          <button class="btn-ghost hidden" id="revealBtn">👁 Reveal answer</button>
+        </div>
+        <div id="hintBox" style="font-size:13px;color:var(--yellow);margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <h2>🛠 Build the request</h2>
+        <label>1. Method</label>
+        <div class="methods" id="methods"></div>
+        <label>2. Path (after base)</label>
+        <div class="urlrow"><span>https://api.shipfast.dev</span><input id="pathInput" placeholder="/…" autocomplete="off" spellcheck="false"></div>
+        <label>3. Query params</label>
+        <div id="queryRows"></div>
+        <button class="btn-ghost" id="addQuery">+ Add param</button>
+        <label>4. JSON body (POST / PUT / PATCH)</label>
+        <textarea id="bodyInput" placeholder='{
+  "key": "value"
+}' spellcheck="false"></textarea>
+        <label>Live preview</label>
+        <pre><code id="preview"></code></pre>
+        <div class="row">
+          <button class="btn-primary" id="sendBtn">📡 Send Request</button>
+          <button class="btn-ghost" id="clearBtn">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>📟 Mock API Console</h2>
+      <div id="console"><span style="color:var(--muted)">No request sent yet. Build above and hit Send.</span></div>
+    </div>
+
+    <div id="feedback"></div>
+  </section>
+</main>
+
+<footer>Learn REST by doing • plural nouns • no verbs in URLs • correct method + status codes • progress autosaves locally</footer>
+
+<script>
+const CHAPTERS = {
+  1:"Ch 1 — Resources & Methods",
+  2:"Ch 2 — Nesting & Query Params",
+  3:"Ch 3 — Updates: PUT vs PATCH vs DELETE",
+  4:"Ch 4 — Status Codes & Errors",
+  5:"Ch 5 — Boss Run: Todos App"
+};
+
+const SCENARIOS = [
+{id:"1-1",chapter:1,title:"List all users",from:"frontend",story:"The admin dashboard needs to show every user. The fetch call is empty — what endpoint lists a whole collection?",task:"List ALL users.",snippet:'fetch(BASE + "???")  // TODO: list users',method:"GET",paths:["/users"],query:{},bodyKeys:[],successStatus:200,successBody:[{id:1,name:"Ada"},{id:42,name:"Grace"}],explanation:"GET on a plural collection (/users) lists everything. No ID, no verb.",hints:["Collections are plural nouns: /users","Listing = GET, no ID in the path"],alt:{task:"List ALL products.",story:"New ticket, same skill: the shop page needs every product. Different collection — same pattern.",snippet:'fetch(BASE + "???")  // TODO: list products',paths:["/products"],successBody:[{id:11,name:"Keyboard"},{id:12,name:"Mouse"}],hints:["Collections are plural nouns (like /products)","Listing = GET on the collection, no ID"],explanation:"GET on a plural collection (/products) lists everything. Same pattern, new resource."}},
+{id:"1-2",chapter:1,title:"Show one profile",from:"frontend",story:"Profile page for user 42 is blank. Backend says: 'just GET the single resource'.",task:"Get user with id 42.",snippet:'fetch(BASE + "???")  // TODO: user 42 profile',method:"GET",paths:["/users/42"],query:{},bodyKeys:[],successStatus:200,successBody:{id:42,name:"Grace",email:"grace@shipfast.dev"},explanation:"Single resource = GET /users/{id}. Collection + ID.",hints:["Start from the collection: /users …","Append the ID: /users/42"]},
+{id:"1-3",chapter:1,title:"Sign-up form",from:"frontend",story:"Sign-up form collects name + email. To store it, you must CREATE a resource. Which method creates?",task:"Create a new user. Body must include name and email.",snippet:'fetch(BASE+"???",{method:"???",body:JSON.stringify({name,email})})',method:"POST",paths:["/users"],query:{},bodyKeys:["name","email"],bodyExample:{name:"Ada",email:"ada@shipfast.dev"},successStatus:201,successBody:{id:101,name:"Ada"},explanation:"POST /users creates. The new object goes in the body, not the URL. Returns 201 Created.",hints:["Creating = POST to the collection (no ID)","Body needs name AND email as JSON"],alt:{task:"Create a new user. Body must include name, email AND company.",story:"Signup form grew: it now also asks for company. Same POST skill — new required fields.",snippet:'fetch(BASE+"???",{method:"???",body:JSON.stringify({name,email,company})})',bodyKeys:["name","email","company"],bodyExample:{name:"Ada",email:"ada@shipfast.dev",company:"ShipFast"},successBody:{id:102,name:"Ada"},hints:["Creating = POST to the collection (no ID)","Body now needs THREE fields — read the ticket"],explanation:"POST /users creates. Required body fields change per form — read the ticket, send every key. Returns 201 Created."}},
+{id:"1-4",chapter:1,title:"Kill the verb in URL",from:"backend",story:"Code review! A teammate wrote GET /getUsers. It works but breaks REST naming. Fix it.",task:"Fix the endpoint: list users the RESTful way.",snippet:'fetch(BASE+"/getUsers") // ❌ review: verb in URL',method:"GET",paths:["/users"],query:{},bodyKeys:[],successStatus:200,successBody:[{id:1,name:"Ada"}],explanation:"Never put verbs (get/create/delete) in the path. The HTTP method IS the verb. Use GET /users.",hints:["Remove 'get' from the URL","Method GET + noun /users is enough"],alt:{task:"Fix the endpoint: list products the RESTful way.",story:"Another review flag, same smell: a teammate wrote GET /getProducts. Different resource — same fix.",snippet:'fetch(BASE+"/getProducts") // ❌ review: verb in URL',paths:["/products"],successBody:[{id:11,name:"Keyboard"}],hints:["Remove 'get' from the URL","Method GET + noun /products is enough"],explanation:"Never put verbs in the path. GET /products — same rule, new resource."}},
+{id:"2-1",chapter:2,title:"User's orders",from:"frontend",story:"Order-history page: 'show orders belonging to user 42'. Orders are nested under users.",task:"Get all orders for user 42.",snippet:'fetch(BASE+"???") // orders of user 42',method:"GET",paths:["/users/42/orders"],query:{},bodyKeys:[],successStatus:200,successBody:[{id:7,total:99},{id:8,total:12}],explanation:"Nesting shows ownership: /users/{id}/orders = orders scoped to that user.",hints:["Start with the parent: /users/42","Then the child collection: /orders"]},
+{id:"2-2",chapter:2,title:"One specific order",from:"frontend",story:"Clicking order #7 should show its detail. You need that one nested order.",task:"Get order 7 of user 42.",snippet:'fetch(BASE+"???") // order 7 of user 42',method:"GET",paths:["/users/42/orders/7"],query:{},bodyKeys:[],successStatus:200,successBody:{id:7,total:99,status:"shipped"},explanation:"Deep nesting: /users/42/orders/7 drills parent → child → item.",hints:["Build on the last level: /users/42/orders …","Add the order id at the end"]},
+{id:"2-3",chapter:2,title:"Filter: only shipped",from:"frontend",story:"Add a 'Shipped only' filter. Backend supports ?status=. Don't create a new endpoint — use a query param!",task:"Get user 42's orders where status=shipped.",snippet:'fetch(BASE+"???") // filter shipped',method:"GET",paths:["/users/42/orders"],query:{status:"shipped"},bodyKeys:[],successStatus:200,successBody:[{id:7,status:"shipped"}],explanation:"Filtering/sorting/search = query params (?key=value), not new paths. Path picks the resource, query filters it.",hints:["Path stays /users/42/orders","Add query param: status = shipped (use + Add param)"]},
+{id:"2-4",chapter:2,title:"Paginated catalog",from:"frontend",story:"Product catalog has 10,000 items! Load page 2, 10 per page or the app crashes.",task:"Get products with limit=10 and page=2.",snippet:'fetch(BASE+"???") // page 2, 10 per page',method:"GET",paths:["/products"],query:{limit:"10",page:"2"},bodyKeys:[],successStatus:200,successBody:{page:2,limit:10,items:["p11…p20"]},explanation:"Pagination = query params ?limit=&page=. Keeps one clean /products endpoint.",hints:["Path is just /products","Add TWO params: limit=10 and page=2"],alt:{task:"Get orders with limit=5 and page=3.",story:"Admin order table: 5 per page, jump to page 3. Same pagination skill — new numbers, new resource.",snippet:'fetch(BASE+"???") // 5 per page, page 3',paths:["/orders"],query:{limit:"5",page:"3"},successBody:{page:3,limit:5,items:["o11…o15"]},hints:["Path is just /orders","Add TWO params with the values from the ticket"],explanation:"Pagination = ?limit=&page=. Same pattern — always copy the exact values from the ticket."}},
+{id:"3-1",chapter:3,title:"Full replace (PUT)",from:"frontend",story:"Settings page saves the WHOLE profile (name, email, role). Full replacement = PUT.",task:"Fully replace user 42. Body needs name, email, role.",snippet:'fetch(BASE+"???",{method:"???",body:fullProfile})',method:"PUT",paths:["/users/42"],query:{},bodyKeys:["name","email","role"],bodyExample:{name:"Grace",email:"g@x.dev",role:"admin"},successStatus:200,successBody:{id:42,updated:true},explanation:"PUT = replace the entire resource. Send the complete object. Idempotent: sending twice = same result.",hints:["Full replace = PUT (not PATCH)","Path needs the ID; body needs all 3 fields"]},
+{id:"3-2",chapter:3,title:"Quick patch (PATCH)",from:"frontend",story:"User only changed their email. Don't resend everything — send just the changed field.",task:"Update ONLY the email of user 42.",snippet:'fetch(BASE+"???",{method:"???",body:{email}})',method:"PATCH",paths:["/users/42"],query:{},bodyKeys:["email"],bodyExample:{email:"new@shipfast.dev"},successStatus:200,successBody:{id:42,email:"new@shipfast.dev"},explanation:"PATCH = partial update. Send only changed fields. Smaller, safer for single-field edits.",hints:["Partial = PATCH","Body: just { email }"]},
+{id:"3-3",chapter:3,title:"Delete account",from:"frontend",story:"'Delete my account' button. Deleting = DELETE, and success has NO body.",task:"Delete user 42.",snippet:'fetch(BASE+"???",{method:"???"}) // delete account',method:"DELETE",paths:["/users/42"],query:{},bodyKeys:[],successStatus:204,successBody:null,explanation:"DELETE /users/42 removes it. Success = 204 No Content (empty body).",hints:["Method is DELETE","Path is the single resource: /users/42"]},
+{id:"3-4",chapter:3,title:"Safe retry",from:"backend",story:"Mobile app retries 'set address for user 42' on bad wifi and creates duplicates! Which method is safe to retry?",task:"Set address for user 42 idempotently (safe to resend). Body needs address.",snippet:'// retries cause duplicates — pick idempotent method',method:"PUT",paths:["/users/42"],query:{},bodyKeys:["address"],bodyExample:{address:"1 Main St"},successStatus:200,successBody:{id:42,address:"1 Main St"},explanation:"PUT is idempotent: 1× or 5× has the same effect. POST is NOT — each POST creates a new resource.",hints:["Idempotent = PUT (or PATCH/DELETE), never POST","Same path /users/42 + address in body"]},
+{id:"4-1",chapter:4,title:"201 Created",from:"backend",story:"QA: 'creating a product returns 200, should be 201!' Build the correct create call and check the console.",task:"Create a product. Body needs name and price.",snippet:'fetch(BASE+"???",{method:"???",body:{name,price}})',method:"POST",paths:["/products"],query:{},bodyKeys:["name","price"],bodyExample:{name:"Keyboard",price:79},successStatus:201,successBody:{id:501,name:"Keyboard"},explanation:"POST success = 201 Created (not 200). It means 'made a new thing'.",hints:["POST to /products","Body: name + price"],alt:{task:"Create an order. Body needs productId and quantity.",story:"Checkout flow: same creation skill, new resource with different required fields.",snippet:'fetch(BASE+"???",{method:"???",body:{productId,quantity}})',paths:["/orders"],bodyKeys:["productId","quantity"],bodyExample:{productId:11,quantity:2},successBody:{id:301,productId:11},hints:["Creating = POST to the collection","Body needs productId + quantity"],explanation:"POST /orders creates. New resource, new body keys — same 201 Created pattern."}},
+{id:"4-2",chapter:4,title:"204 No Content",from:"backend",story:"Deleting product 9 returns the deleted object. REST says DELETE success should be empty: 204.",task:"Delete product 9.",snippet:'fetch(BASE+"???",{method:"???"})',method:"DELETE",paths:["/products/9"],query:{},bodyKeys:[],successStatus:204,successBody:null,explanation:"DELETE success = 204 No Content. Empty body is correct — the thing is gone.",hints:["DELETE method","Path /products/9"]},
+{id:"4-3",chapter:4,title:"Fix the 404",from:"frontend",story:"Console shows 404: GET /user/42 Not Found. The resource exists! What's misspelled?",task:"Fix the 404 — get user 42.",snippet:'fetch(BASE+"/user/42") // → 404 Not Found',method:"GET",paths:["/users/42"],query:{},bodyKeys:[],successStatus:200,successBody:{id:42,name:"Grace"},explanation:"404 often = wrong path. Resources are plural: /users not /user. One letter breaks it.",hints:["404 = path typo","Pluralize: /users/42"]},
+{id:"4-4",chapter:4,title:"Fix the 400",from:"frontend",story:"Sign-up fails: 400 'email is required'. The POST is right but the body is missing a field.",task:"POST /users with BOTH name and email.",snippet:'fetch(BASE+"/users",{method:"POST",body:{name:"Ada"}}) // → 400',method:"POST",paths:["/users"],query:{},bodyKeys:["name","email"],bodyExample:{name:"Ada",email:"ada@shipfast.dev"},successStatus:201,successBody:{id:102,name:"Ada"},explanation:"400 = client sent bad/incomplete data. Read the error message — it tells you the missing field.",hints:["400 = bad body, not bad URL","Add email alongside name"],alt:{task:"POST /products with BOTH name and price.",story:"Product form fails: 400 'price is required'. Same 400-debugging skill — new endpoint, new missing field.",snippet:'fetch(BASE+"/products",{method:"POST",body:{name:"Keyboard"}}) // → 400',paths:["/products"],bodyKeys:["name","price"],bodyExample:{name:"Keyboard",price:79},successBody:{id:502,name:"Keyboard"},hints:["400 = bad body, not bad URL","Add price alongside name"],explanation:"400 names the missing field. Same debugging move — read the message, add the key."}},
+{id:"5-1",chapter:5,title:"Boss: list todos",from:"frontend",story:"BOSS RUN 🏁 Todo app banned all mock data. Step 1: load the list.",task:"Get all todos.",snippet:'TodoList needs: fetch(BASE+"???")',method:"GET",paths:["/todos"],query:{},bodyKeys:[],successStatus:200,successBody:[{id:5,title:"Learn REST",completed:false}],explanation:"Boss pattern repeats: GET collection to read.",hints:["Same pattern as /users","GET /todos"],alt:{task:"Get todos where status=open.",story:"BOSS, round 2: the list is long — the UI now needs only OPEN todos. Same GET, plus a filter.",snippet:'TodoList needs open only: fetch(BASE+"???")',query:{status:"open"},successBody:[{id:5,title:"Learn REST",completed:false}],hints:["Path stays /todos","Add query param status — check the ticket for the value"],explanation:"Same collection, new requirement: filter with ?status=open instead of fetching everything."}},
+{id:"5-2",chapter:5,title:"Boss: create todo",from:"frontend",story:"Step 2: the +Add form. Create a todo with a title.",task:"Create todo. Body needs title.",snippet:'AddForm needs: fetch(BASE+"???",{method:"???",body:{title}})',method:"POST",paths:["/todos"],query:{},bodyKeys:["title"],bodyExample:{title:"Learn REST"},successStatus:201,successBody:{id:6,title:"Learn REST"},explanation:"POST /todos + {title} → 201. Creation always POSTs to the collection.",hints:["POST to the collection","Body: { title }"],alt:{task:"Create todo. Body needs title AND details.",story:"The +Add form grew a details field. Same POST, stricter body.",snippet:'AddForm needs: fetch(BASE+"???",{method:"???",body:{title,details}})',bodyKeys:["title","details"],bodyExample:{title:"Learn REST",details:"Ch 1-4 drills"},successBody:{id:7,title:"Learn REST"},hints:["POST to the collection","Body needs BOTH title and details"],explanation:"POST /todos + full body → 201. Forms change — the ticket lists the required keys."}},
+{id:"5-3",chapter:5,title:"Boss: toggle done",from:"frontend",story:"Step 3: checkbox toggles one todo. Only the completed field changes.",task:"Mark todo 5 completed. Body: completed true.",snippet:'Toggle needs: fetch(BASE+"???",{method:"???",body:{completed:true}})',method:"PATCH",paths:["/todos/5"],query:{},bodyKeys:["completed"],bodyExample:{completed:true},successStatus:200,successBody:{id:5,completed:true},explanation:"Single-field edit = PATCH /todos/5. PUT would demand the whole todo.",hints:["Partial update = PATCH","Path /todos/5"]},
+{id:"5-4",chapter:5,title:"Boss: delete todo",from:"frontend",story:"Final step: delete button for todo 5. Finish the CRUD!",task:"Delete todo 5.",snippet:'DeleteBtn needs: fetch(BASE+"???",{method:"???"})',method:"DELETE",paths:["/todos/5"],query:{},bodyKeys:[],successStatus:204,successBody:null,explanation:"DELETE /todos/5 → 204. You now know full CRUD: GET, POST, PATCH/PUT, DELETE. 🎓",hints:["DELETE the single resource","/todos/5 → 204"]}
+];
+
+const MASTERY = 2; // solves required per ticket (repetition). Bump to 3 for extra drill.
+
+const LS_KEY="shipfast-rest-game-v1";
+let state={xp:0,streak:0,bestStreak:0,completed:[],stars:{},variants:{},current:0,hintIdx:{},fails:{}};
+try{
+  const s=JSON.parse(localStorage.getItem(LS_KEY));
+  if(s&&Array.isArray(s.completed)){
+    state={...state,...s};
+    // migrate old saves: completed tickets become fully mastered
+    state.stars=state.stars||{};
+    for(const id of state.completed) state.stars[id]=MASTERY;
+    state.variants=state.variants||{};
+  }
+}catch(e){}
+function save(){localStorage.setItem(LS_KEY,JSON.stringify(state));}
+function starsOf(id){return state.stars[id]||0;}
+function mastered(id){return starsOf(id)>=MASTERY;}
+function masteredCount(){return SCENARIOS.filter(sc=>mastered(sc.id)).length;}
+function totalStars(){return SCENARIOS.reduce((n,sc)=>n+Math.min(starsOf(sc.id),MASTERY),0);}
+// --- Variants: round 1 uses authored IDs; rounds 2+ get fresh IDs so repeats aren't rote copy ---
+function origNumbers(sc){return [...new Set(sc.paths[0].match(/\d+/g)||[])];}
+function getVariantNumbers(sc){
+  if(!state.variants[sc.id]){
+    const origs=origNumbers(sc);
+    const used=new Set(origs);
+    const arr=origs.map(()=>{let n;do{n=String(10+Math.floor(Math.random()*89));}while(used.has(n));used.add(n);return n;});
+    state.variants[sc.id]=arr;save();
+  }
+  return state.variants[sc.id];
+}
+function substNum(text,origs,vars){
+  let out=text;
+  origs.forEach((o,i)=>{out=out.replace(new RegExp(`(?<!\\d)${o}(?!\\d)`,"g"),vars[i]);});
+  return out;
+}
+function resolveScenario(sc){
+  const round=Math.min(starsOf(sc.id)+1,MASTERY);
+  // Explicit round-2 variant: a genuinely different requirement (new resource / values / fields).
+  if(round>=2&&sc.alt){
+    const a=sc.alt;
+    return {...sc,...a,round,varied:true,hints:a.hints||sc.hints,successStatus:a.successStatus||sc.successStatus};
+  }
+  // Generated variant: same skill with fresh random IDs so repeats can't be rote-copied.
+  if(round<=1||origNumbers(sc).length===0) return {...sc,round,varied:false};
+  const origs=origNumbers(sc), vars=getVariantNumbers(sc);
+  const sub=t=>typeof t==="string"?substNum(t,origs,vars):t;
+  let successBody=sc.successBody;
+  if(successBody!==null&&successBody!==undefined){
+    try{successBody=JSON.parse(substNum(JSON.stringify(successBody),origs,vars));}catch(e){}
+  }
+  return {...sc,round,varied:true,
+    paths:sc.paths.map(sub),task:sub(sc.task),story:sub(sc.story),
+    snippet:sub(sc.snippet),hints:sc.hints.map(sub),explanation:sub(sc.explanation),
+    successBody};
+}
+
+let selectedMethod="GET";
+const METHODS=["GET","POST","PUT","PATCH","DELETE"];
+const $=id=>document.getElementById(id);
+
+function normPath(p){
+  p=(p||"").trim();
+  if(!p.startsWith("/"))p="/"+p;
+  p=p.replace(/\/{2,}/g,"/").replace(/\/+$/,"")||"/";
+  return p.toLowerCase();
+}
+function collectQuery(){
+  const obj={};
+  document.querySelectorAll("#queryRows .qrow").forEach(r=>{
+    const k=r.querySelector(".k").value.trim(),v=r.querySelector(".v").value.trim();
+    if(k) obj[k]=v;
+  });
+  return obj;
+}
+function validate(sc,inp){
+  // 1. method
+  if(inp.method!==sc.method)
+    return {ok:false,status:405,error:`${inp.method} ${inp.path||"/"} → 405 Method Not Allowed`,
+      fix:`Wrong method. Ask: am I reading (GET), creating (POST), fully replacing (PUT), partially updating (PATCH), or removing (DELETE)? Re-read the ticket and try again.`};
+  // 2. path
+  const want=sc.paths.map(normPath);
+  const got=normPath(inp.path);
+  if(!want.includes(got)){
+    let fix=`Wrong path — check the resource naming.`;
+    if(/get|create|delete|update|fetch|add/i.test(got)&&/^\/(get|create|delete|update|fetch|add)/i.test(got))
+      fix+=` REST rule: no verbs in URLs — the method is already the verb, use a plural noun instead.`;
+    else if(/^\/user(\/\d+)?$/.test(got))
+      fix+=` 404 cause: check singular vs plural — resources use plural nouns.`;
+    else if(got==="/users"&&want[0].includes("/users/"))
+      fix+=` Listing the collection isn't enough here — do you need one specific item (an ID) or a nested resource?`;
+    else fix+=` Compare carefully: plural noun? ID included? nested parent/child? No verbs?`;
+    return {ok:false,status:404,error:`GET ${inp.path||"/"} → 404 Not Found`,fix};
+  }
+  // 3. query
+  const need=sc.query||{};
+  for(const k of Object.keys(need)){
+    if(!(k in inp.query)) return {ok:false,status:400,error:`400 Bad Request — missing query param "${k}"`,fix:`Add query param "${k}" with '+ Add param'. Check the ticket for the value to filter by.`};
+    if(String(inp.query[k])!==String(need[k])) return {ok:false,status:400,error:`400 Bad Request — query "${k}" has the wrong value`,fix:`Fix the value of "${k}". Re-read the ticket for the exact value.`};
+  }
+  // 4. body
+  const keys=sc.bodyKeys||[];
+  if(keys.length){
+    if(inp.bodyError) return {ok:false,status:400,error:`400 Bad Request — body is not valid JSON`,fix:'Body must be valid JSON, e.g. {"key": "value"}. Check commas and quotes.'};
+    for(const k of keys){
+      if(!inp.body||!(k in inp.body)) return {ok:false,status:400,error:`400 Bad Request — body missing "${k}"`,fix:`Add "${k}" to the JSON body. Check the ticket for which fields are required.`};
+    }
+  }
+  return {ok:true};
+}
+
+function currentScenario(){return SCENARIOS[state.current];}
+function isUnlocked(i){return i===0||mastered(SCENARIOS[i-1].id);}
+
+function renderHUD(){
+  $("xp").textContent=state.xp;
+  $("streak").textContent=state.streak;
+  $("doneCount").textContent=masteredCount();
+  document.querySelector("#doneCount").parentElement.title=`${totalStars()} / ${SCENARIOS.length*MASTERY} stars`;
+  $("bar").style.width=(totalStars()/(SCENARIOS.length*MASTERY)*100)+"%";
+}
+function renderMap(){
+  const el=$("levels");el.innerHTML="";
+  let lastCh=0;
+  SCENARIOS.forEach((sc,i)=>{
+    if(sc.chapter!==lastCh){lastCh=sc.chapter;
+      const h=document.createElement("div");
+      h.style.cssText="font-size:11px;color:var(--muted);margin:10px 0 4px;font-weight:800";
+      h.textContent=CHAPTERS[sc.chapter];el.appendChild(h);}
+    const b=document.createElement("button");
+    const st=starsOf(sc.id), done=mastered(sc.id);
+    const unlocked=isUnlocked(i);
+    b.className="lvl"+(done?" done":"")+(i===state.current?" current":"")+(unlocked?"":" locked");
+    const starStr="★".repeat(Math.min(st,MASTERY))+"☆".repeat(MASTERY-Math.min(st,MASTERY));
+    b.innerHTML=`${done?"✅":unlocked?"○":"🔒"} ${sc.id} — ${sc.title}<small>${starStr}</small>`;
+    b.disabled=!unlocked;
+    b.onclick=()=>{state.current=i;state.hintIdx[sc.id]=0;refreshForTicket(`Ticket ${sc.id} loaded — build the request above.`);};
+    el.appendChild(b);
+  });
+}
+function renderScenario(){
+  const raw=currentScenario();
+  const sc=resolveScenario(raw);
+  const st=starsOf(raw.id);
+  $("ticketId").textContent=`${raw.id} • Attempt ${Math.min(st+1,MASTERY)}/${MASTERY}${sc.varied?" 🔁 new data!":""}`;
+  $("ticketFrom").innerHTML=`<span class="tag ${sc.from}">${sc.from==="frontend"?"🖥 FRONTEND TICKET":"⚙ BACKEND TICKET"}</span> <span style="font-size:12px;color:var(--yellow)"> ${"★".repeat(Math.min(st,MASTERY))+"☆".repeat(MASTERY-Math.min(st,MASTERY))}</span>`;
+  $("ticketTitle").textContent=sc.title;
+  $("ticketStory").textContent=sc.story+(sc.varied?" (Same skill — NEW requirement 🎯 Read it fresh!)":"");
+  $("ticketTask").textContent="👉 "+sc.task;
+  $("ticketSnippet").textContent=sc.snippet;
+  $("revealBtn").classList.toggle("hidden",!(state.fails[raw.id]>=3&&!mastered(raw.id)));
+  // builder defaults (never pre-fill answers — keep inputs blank)
+  if(!document.activeElement||!["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){
+    setMethod("GET");$("pathInput").value="";$("bodyInput").value="";
+    $("queryRows").innerHTML="";addQueryRow();
+  }
+  updatePreview();
+}
+function refreshForTicket(msg, toTop=false){
+  // Hard refresh of the workspace for a (new) ticket: blank builder, fresh console,
+  // hidden feedback, re-rendered ticket, scrolled back into view.
+  $("pathInput").value="";$("bodyInput").value="";
+  $("queryRows").innerHTML="";addQueryRow();
+  $("hintBox").textContent="";$("feedback").style.display="none";
+  $("console").innerHTML=`<span style="color:var(--muted)">${msg}</span>`;
+  renderAll();
+  if(toTop){if(window.scrollTo)window.scrollTo({top:0,behavior:"smooth"});return;}
+  const t=$("ticketCard");if(t&&t.scrollIntoView)t.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderAll(){renderHUD();renderMap();renderScenario();save();}
+
+function setMethod(m){
+  selectedMethod=m;
+  const box=$("methods");box.innerHTML="";
+  METHODS.forEach(x=>{
+    const b=document.createElement("button");
+    b.textContent=x;b.className=x===m?"active":"";
+    b.onclick=()=>{setMethod(x);updatePreview();};
+    box.appendChild(b);
+  });
+}
+function addQueryRow(k="",v=""){
+  const d=document.createElement("div");d.className="qrow";
+  d.innerHTML=`<input class="k" placeholder="key" value="${k}"><input class="v" placeholder="value" value="${v}"><button class="btn-ghost">✕</button>`;
+  d.querySelector("button").onclick=()=>{d.remove();updatePreview();};
+  d.querySelectorAll("input").forEach(i=>i.oninput=updatePreview);
+  $("queryRows").appendChild(d);
+}
+function readBody(){
+  const t=$("bodyInput").value.trim();
+  if(!t)return{body:null,error:null};
+  try{return{body:JSON.parse(t),error:null};}
+  catch(e){return{body:null,error:e.message};}
+}
+function buildQueryString(q){
+  const e=Object.entries(q);
+  if(!e.length)return"";
+  return"?"+e.map(([k,v])=>encodeURIComponent(k)+"="+encodeURIComponent(v)).join("&");
+}
+function updatePreview(){
+  const q=collectQuery();
+  const {body}=readBody();
+  const path=$("pathInput").value||"/…";
+  let opts=`{ method: "${selectedMethod}"`;
+  if(body)opts+=`, body: ${JSON.stringify(body)}`;
+  opts+=" }";
+  $("preview").textContent=`fetch("https://api.shipfast.dev${path}${buildQueryString(q)}", ${opts})`;
+}
+
+function send(){
+  const raw=currentScenario();
+  const sc=resolveScenario(raw);
+  const {body,error}=readBody();
+  const inp={method:selectedMethod,path:$("pathInput").value||"/",query:collectQuery(),body,bodyError:error};
+  const res=validate(sc,inp);
+  const con=$("console");
+  con.innerHTML=`<div><span style="color:var(--muted)">→ ${inp.method} https://api.shipfast.dev${normPath(inp.path)}${buildQueryString(inp.query)}</span> <span class="spin">⏳</span></div>`;
+  $("feedback").className="";$("feedback").style.display="none";
+  setTimeout(()=>{
+    if(res.ok){
+      const alreadyMastered=mastered(raw.id);
+      state.streak++;
+      state.bestStreak=Math.max(state.bestStreak,state.streak);
+      let gain=alreadyMastered?10:100;
+      if(state.streak>=3)gain+=25;
+      state.xp+=gain;
+      state.stars[raw.id]=Math.min(starsOf(raw.id)+1,MASTERY);
+      if(mastered(raw.id)&&!state.completed.includes(raw.id))state.completed.push(raw.id);
+      const nowMastered=mastered(raw.id);
+      const bodyOut=sc.successBody===null?"(empty body)":JSON.stringify(sc.successBody,null,2);
+      con.innerHTML=`<div>→ ${inp.method} ${normPath(inp.path)}${buildQueryString(inp.query)}</div><div class="status s${sc.successStatus}">${sc.successStatus} ${sc.successStatus===201?"Created":sc.successStatus===204?"No Content":"OK"}</div><pre>${bodyOut}</pre>`;
+      const fb=$("feedback");
+      const last=state.current===SCENARIOS.length-1;
+      fb.className="ok";
+      // Unified "next" action shared by the feedback button and the console "Next Task" button.
+      window._nextAction=()=>{
+        if(!mastered(raw.id)){delete state.variants[raw.id];save();refreshForTicket(`Round ${starsOf(raw.id)+1}/${MASTERY} — new requirement above. Build the request.`,true);}
+        else if(state.current<SCENARIOS.length-1){state.current=Math.min(state.current+1,SCENARIOS.length-1);refreshForTicket(`Ticket ${SCENARIOS[state.current].id} loaded — build the request above.`,true);}
+        else{alert(`🎓 Course complete! ${masteredCount()}/20 mastered — XP: ${state.xp}. You mastered REST endpoints!`);}
+      };
+      if(!nowMastered){
+        fb.innerHTML=`<h3>✅ Round ${starsOf(raw.id)}/${MASTERY} passed! +${gain} XP ${state.streak>=2?`(${state.streak} streak 🔥)`:""}</h3><p>${sc.explanation}</p><div class="rule">A <b>NEW requirement</b> is loaded above — read the ticket again and solve it to master this skill ${"★".repeat(starsOf(raw.id))+"☆".repeat(MASTERY-starsOf(raw.id))}.</div><div class="row"><button class="btn-green" id="nextBtn">Show round ${starsOf(raw.id)+1}/${MASTERY} →</button></div>`;
+        con.innerHTML=`<div class="row" style="margin:0 0 10px"><button class="btn-green" id="consoleNextBtn">Next Task: Round ${starsOf(raw.id)+1}/${MASTERY} →</button></div>`+con.innerHTML;
+        $("nextBtn").onclick=window._nextAction;
+        $("consoleNextBtn").onclick=window._nextAction;
+      }else{
+        fb.innerHTML=`<h3>✅ Mastered ${raw.id}! +${gain} XP ${state.streak>=2?`(${state.streak} streak 🔥)`:""} ${"★".repeat(MASTERY)}</h3><p>${sc.explanation}</p><div class="rule">📏 REST rule: <b>${sc.method} ${sc.paths[0]}</b> ${Object.keys(sc.query||{}).length?`with <b>${Object.entries(sc.query).map(([k,v])=>`?${k}=${v}`).join("&")}</b>`:""} → <b>${sc.successStatus}</b></div><div class="row">${last?`<button class="btn-green" onclick="alert('🎓 Course complete! ${masteredCount()}/20 mastered — XP: ${state.xp}. You mastered REST endpoints!')">🏆 Finish</button>`:`<button class="btn-green" id="nextBtn">Next ticket →</button>`}<button class="btn-ghost" id="againBtn">🔁 Drill again (new IDs)</button></div>`;
+        if(!last)$("nextBtn").onclick=window._nextAction;
+        con.innerHTML=`<div class="row" style="margin:0 0 10px"><button class="btn-green" id="consoleNextBtn">${last?"🏆 Finish":"Next Task →"}</button></div>`+con.innerHTML;
+        $("consoleNextBtn").onclick=window._nextAction;
+        $("againBtn").onclick=()=>{state.stars[raw.id]=MASTERY-1;delete state.variants[raw.id];state.fails[raw.id]=0;save();refreshForTicket(`Drill again — fresh IDs above. Build the request.`);};
+        if(last&&masteredCount()===SCENARIOS.length){
+          fb.innerHTML+=`<p>🎓 <b>All 20 tickets mastered ×${MASTERY}!</b> Best streak: ${state.bestStreak}. You can read any frontend ticket and pick the right endpoint.</p>`;
+        }
+      }
+      if(fb.scrollIntoView)fb.scrollIntoView({behavior:"smooth",block:"center"});
+    }else{
+      state.streak=0;
+      state.xp=Math.max(0,state.xp-5);
+      state.fails[raw.id]=(state.fails[raw.id]||0)+1;
+      con.innerHTML=`<div>→ ${inp.method} ${normPath(inp.path)}${buildQueryString(inp.query)}</div><div class="status s${res.status}">${res.status}</div><pre>${JSON.stringify({error:res.error},null,2)}</pre>`;
+      const fb=$("feedback");
+      fb.className="bad";
+      fb.innerHTML=`<h3>❌ Not quite (−5 XP)</h3><p><b>${res.error}</b></p><p>${res.fix}</p><div class="rule">💡 ${sc.hints[0]}</div>${state.fails[raw.id]>=3?`<p>Stuck? Use <b>👁 Reveal answer</b> on the ticket card.</p>`:""}`;
+      if(fb.scrollIntoView)fb.scrollIntoView({behavior:"smooth",block:"center"});
+      renderHUD();save();
+    }
+    renderHUD();renderMap();save();
+  },600);
+}
+
+$("sendBtn").onclick=send;
+$("pathInput").oninput=updatePreview;
+$("bodyInput").oninput=updatePreview;
+$("addQuery").onclick=()=>addQueryRow();
+$("clearBtn").onclick=()=>{$("pathInput").value="";$("bodyInput").value="";$("queryRows").innerHTML="";addQueryRow();updatePreview();};
+$("hintBtn").onclick=()=>{
+  const sc=resolveScenario(currentScenario());
+  const i=state.hintIdx[sc.id]||0;
+  if(i>=sc.hints.length){$("hintBox").textContent="No more hints — check the REST rule in feedback.";return;}
+  state.xp=Math.max(0,state.xp-10);
+  $("hintBox").textContent=`💡 Hint ${i+1}/${sc.hints.length}: ${sc.hints[i]}`;
+  state.hintIdx[sc.id]=i+1;renderHUD();save();
+};
+$("revealBtn").onclick=()=>{
+  const sc=resolveScenario(currentScenario());
+  setMethod(sc.method);$("pathInput").value=sc.paths[0];
+  $("queryRows").innerHTML="";
+  const q=sc.query||{};
+  if(!Object.keys(q).length)addQueryRow();
+  Object.entries(q).forEach(([k,v])=>addQueryRow(k,v));
+  $("bodyInput").value=sc.bodyExample?JSON.stringify(sc.bodyExample,null,2):"";
+  updatePreview();
+  $("hintBox").textContent="Answer filled in — hit Send to confirm (worth reduced XP).";
+};
+$("resetBtn").onclick=()=>{if(confirm("Reset all progress?")){state={xp:0,streak:0,bestStreak:0,completed:[],stars:{},variants:{},current:0,hintIdx:{},fails:{}};save();renderAll();}};
+document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key==="Enter")send();});
+
+renderAll();
+</script>
+</body>
+</html>
